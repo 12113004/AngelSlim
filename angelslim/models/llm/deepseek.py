@@ -18,7 +18,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.models.deepseek_v3 import DeepseekV3Config
+try:
+    from transformers.models.deepseek_v3 import DeepseekV3Config
+except ImportError:
+    DeepseekV3Config = None
 
 from ...compressor.quant.core import (
     DeepSeekV3PTQSaveMulti,

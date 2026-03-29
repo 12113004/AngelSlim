@@ -32,7 +32,10 @@ from torch import nn
 from tqdm import tqdm, trange
 from transformers.generation import GenerationMixin
 from transformers.modeling_utils import PreTrainedModel
-from transformers.models.deepseek_v3 import DeepseekV3Config
+try:
+    from transformers.models.deepseek_v3 import DeepseekV3Config
+except ImportError:
+    DeepseekV3Config = None
 
 from angelslim.compressor.quant import weight_dequant
 from angelslim.utils import print_info

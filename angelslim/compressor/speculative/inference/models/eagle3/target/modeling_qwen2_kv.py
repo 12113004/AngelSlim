@@ -10,7 +10,7 @@
 # - Other modifications are denoted by the symbol: [MODIFIED]
 # flake8: noqa: E501
 from functools import partial
-from typing import Callable, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import torch
 from torch import nn
@@ -26,16 +26,30 @@ from transformers.modeling_outputs import (
     SequenceClassifierOutputWithPast,
     TokenClassifierOutput,
 )
-from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_update
+from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
+try:
+    from transformers.modeling_rope_utils import dynamic_rope_update
+except ImportError:
+    # Provide a passthrough decorator for older transformers versions
+    def dynamic_rope_update(func):
+        return func
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
 from transformers.models.qwen2.configuration_qwen2 import Qwen2Config
 from transformers.processing_utils import Unpack
-from transformers.utils import TransformersKwargs  # [MODIFIED]
+try:
+    from transformers.utils import TransformersKwargs
+except ImportError:
+    TransformersKwargs = None
+try:
+    from transformers.utils import can_return_tuple
+except ImportError:
+    # Provide a passthrough decorator for older transformers versions
+    def can_return_tuple(func):
+        return func
 from transformers.utils import (
     add_code_sample_docstrings,
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
-    can_return_tuple,
     logging,
     replace_return_docstrings,
 )
@@ -838,7 +852,7 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
         output_hidden_states: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
         logits_to_keep: Union[int, torch.Tensor] = 0,
-        **kwargs: Unpack[TransformersKwargs],  # [MODIFIED]
+        **kwargs: Unpack[TransformersKwargs] if TransformersKwargs is not None else Any,  # [MODIFIED]
     ) -> CausalLMOutputWithPast:
         r"""
             labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):

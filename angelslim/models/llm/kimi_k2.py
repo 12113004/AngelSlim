@@ -14,7 +14,10 @@
 
 
 from transformers import AutoModelForCausalLM
-from transformers.models.deepseek_v3 import DeepseekV3Config
+try:
+    from transformers.models.deepseek_v3 import DeepseekV3Config
+except ImportError:
+    DeepseekV3Config = None
 
 from ...utils import print_info
 from ..model_factory import SlimModelFactory

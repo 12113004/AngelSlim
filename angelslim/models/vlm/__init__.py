@@ -13,7 +13,20 @@
 # limitations under the License.
 
 from .hunyuan_vl import HunyuanVL  # noqa: F401
-from .qwen3_5 import Qwen3_5  # noqa: F401
-from .qwen3_vl import Qwen3VL  # noqa: F401
-from .qwen3_vl_moe import Qwen3VLMoE  # noqa: F401
+try:
+    from .qwen3_5 import Qwen3_5  # noqa: F401
+except ImportError:
+    pass
+try:
+    from .qwen3_vl import Qwen3VL  # noqa: F401
+except ImportError:
+    pass
+try:
+    from .qwen3_vl_moe import Qwen3VLMoE  # noqa: F401
+except ImportError:
+    pass
 from .qwen_vl import QwenVL  # noqa: F401
+try:
+    from .wall_oss_vl import WallOSSVL  # noqa: F401
+except ImportError:
+    pass

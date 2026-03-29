@@ -22,8 +22,12 @@ import torch
 from tqdm import tqdm
 
 from .compressor import CompressorFactory
-from .compressor.speculative.benchmark import pytorch as pytorch_benchmark
-from .compressor.speculative.benchmark import vllm as vllm_benchmark
+try:
+    from .compressor.speculative.benchmark import pytorch as pytorch_benchmark
+    from .compressor.speculative.benchmark import vllm as vllm_benchmark
+except ImportError:
+    pytorch_benchmark = None
+    vllm_benchmark = None
 from .data.dataloader import DataLoaderFactory
 from .models import SlimModelFactory
 from .utils import (
@@ -159,7 +163,7 @@ class Engine:
             self.dataloader = custom_dataloader
             return self.dataloader
 
-        assert data_path, "data_path must be specified."
+        assert data_path or data_type == "WallOSSDataset", "data_path must be specified."
         # Dynamically create dataloader by DataLoaderFactory
         self.dataloader = DataLoaderFactory.create_data_loader(
             data_type=data_type,

@@ -16,10 +16,14 @@ import re
 
 import torch
 import torch.nn as nn
-from transformers.models.qwen3_moe.modeling_qwen3_moe import (
-    Qwen3MoeExperts,
-    Qwen3MoeTopKRouter,
-)
+try:
+    from transformers.models.qwen3_moe.modeling_qwen3_moe import (
+        Qwen3MoeExperts,
+        Qwen3MoeTopKRouter,
+    )
+except ImportError:
+    Qwen3MoeExperts = None
+    Qwen3MoeTopKRouter = None
 
 from ...compressor.quant.core import PTQSaveVllmHF
 from ...utils.utils import find_layers, find_parent_layer_and_sub_name
@@ -27,27 +31,30 @@ from ..base_model import BaseLLMModel
 from ..model_factory import SlimModelFactory
 
 
-class QwenMoeExpertsWithLinear(Qwen3MoeExperts):
+if Qwen3MoeExperts is not None:
+    class QwenMoeExpertsWithLinear(Qwen3MoeExperts):
 
-    def __init__(self, experts_layer):
-        super().__init__(experts_layer.config)
-        self.gate_up_proj = experts_layer.gate_up_proj
-        self.down_proj = experts_layer.down_proj
-        for expert_idx in range(self.num_experts):
-            expert = nn.ModuleDict(
-                {
-                    "gate_proj": nn.Linear(self.hidden_dim, self.intermediate_dim, bias=False),
-                    "up_proj": nn.Linear(self.hidden_dim, self.intermediate_dim, bias=False),
-                    "down_proj": nn.Linear(self.intermediate_dim, self.hidden_dim, bias=False),
-                }
-            )
-            expert["gate_proj"].weight.data, expert["up_proj"].weight.data = self.gate_up_proj[
-                expert_idx
-            ].chunk(2, dim=-2)
-            expert["down_proj"].weight.data = self.down_proj[expert_idx]
-            setattr(self, f"{expert_idx}", expert)
-        del self.gate_up_proj
-        del self.down_proj
+        def __init__(self, experts_layer):
+            super().__init__(experts_layer.config)
+            self.gate_up_proj = experts_layer.gate_up_proj
+            self.down_proj = experts_layer.down_proj
+            for expert_idx in range(self.num_experts):
+                expert = nn.ModuleDict(
+                    {
+                        "gate_proj": nn.Linear(self.hidden_dim, self.intermediate_dim, bias=False),
+                        "up_proj": nn.Linear(self.hidden_dim, self.intermediate_dim, bias=False),
+                        "down_proj": nn.Linear(self.intermediate_dim, self.hidden_dim, bias=False),
+                    }
+                )
+                expert["gate_proj"].weight.data, expert["up_proj"].weight.data = self.gate_up_proj[
+                    expert_idx
+                ].chunk(2, dim=-2)
+                expert["down_proj"].weight.data = self.down_proj[expert_idx]
+                setattr(self, f"{expert_idx}", expert)
+            del self.gate_up_proj
+            del self.down_proj
+else:
+    QwenMoeExpertsWithLinear = None
 
     def forward(
         self,

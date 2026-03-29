@@ -28,7 +28,10 @@ from safetensors.torch import load_file, safe_open
 from safetensors.torch import save_file as safe_save
 from safetensors.torch import save_model
 from tqdm import tqdm
-from transformers.models.deepseek_v3 import DeepseekV3Config
+try:
+    from transformers.models.deepseek_v3 import DeepseekV3Config
+except ImportError:
+    DeepseekV3Config = None
 
 from ....utils import print_info
 from .packing_utils import pack_weight_to_int8
@@ -830,11 +833,19 @@ class DeepSeekV3PTQSaveMulti(PTQSaveBase):
                             is not supported for fp8_static."
                     )
 
-        config = DeepseekV3Config.from_pretrained(self.quant_model.model.ori_model_path)
-        if hasattr(config, "quantization_config"):
-            delattr(config, "quantization_config")
-        config.update(quant_dict)
-        config.save_pretrained(save_model_path)
+        if DeepseekV3Config is not None:
+            config = DeepseekV3Config.from_pretrained(self.quant_model.model.ori_model_path)
+            if hasattr(config, "quantization_config"):
+                delattr(config, "quantization_config")
+            config.update(quant_dict)
+            config.save_pretrained(save_model_path)
+        else:
+            # Fallback for older transformers versions
+            config = self.quant_model.get_model().config
+            if hasattr(config, "quantization_config"):
+                delattr(config, "quantization_config")
+            config.update(quant_dict)
+            config.save_pretrained(save_model_path)
         print_info("Save quantization_config: {}".format(quant_dict))
         return "model-" + "{:0>{}}".format(model_save_ind, 5) + ".safetensors"
 

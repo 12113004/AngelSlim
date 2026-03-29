@@ -13,4 +13,7 @@
 # limitations under the License.
 
 
-from .qwen3_omni import Qwen_Omni  # noqa: F401
+try:
+    from .qwen3_omni import Qwen_Omni  # noqa: F401
+except ImportError:
+    pass

@@ -21,12 +21,17 @@ from tqdm import tqdm
 from transformers import (
     AutoProcessor,
     AutoTokenizer,
-    Qwen3VLMoeForConditionalGeneration,
 )
-from transformers.models.qwen3_vl_moe.modeling_qwen3_vl_moe import (
-    Qwen3VLMoeTextExperts,
-    Qwen3VLMoeTextTopKRouter,
-)
+try:
+    from transformers import Qwen3VLMoeForConditionalGeneration
+    from transformers.models.qwen3_vl_moe.modeling_qwen3_vl_moe import (
+        Qwen3VLMoeTextExperts,
+        Qwen3VLMoeTextTopKRouter,
+    )
+except ImportError:
+    Qwen3VLMoeForConditionalGeneration = None
+    Qwen3VLMoeTextExperts = None
+    Qwen3VLMoeTextTopKRouter = None
 
 from angelslim.compressor.quant.core.quant_func import get_fp_maxval
 from angelslim.compressor.quant.observers import (
@@ -96,7 +101,11 @@ class Qwen3VLMoE(BaseLLMModel):
             "language_model.norm",
             "language_model.rotary_emb",
         ]
-        self.observer_layer_classes = [nn.Linear, Qwen3VLMoeTextExperts, Qwen3VLMoeTextTopKRouter]
+        self.observer_layer_classes = [nn.Linear]
+        if Qwen3VLMoeTextExperts is not None:
+            self.observer_layer_classes.append(Qwen3VLMoeTextExperts)
+        if Qwen3VLMoeTextTopKRouter is not None:
+            self.observer_layer_classes.append(Qwen3VLMoeTextTopKRouter)
 
     def from_pretrained(
         self,
@@ -108,6 +117,11 @@ class Qwen3VLMoE(BaseLLMModel):
         use_cache=False,
         using_multi_nodes=False,
     ):
+        if Qwen3VLMoeForConditionalGeneration is None:
+            raise ImportError(
+                "Qwen3VLMoeForConditionalGeneration is not available. "
+                "Please upgrade transformers to >= 5.0.0 to use Qwen3VLMoE models."
+            )
         self.model = Qwen3VLMoeForConditionalGeneration.from_pretrained(
             model_path,
             torch_dtype=torch_dtype,
