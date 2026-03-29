@@ -213,7 +213,49 @@ class AutoLayerScale:
                     )
                 )
 
-        if hasattr(module.mlp, "gate"):
+        if hasattr(module, "moe") and module.moe is not None:
+            print_info("auto scale -> MoeAWQ")
+            # Wall-OSS uses module.moe instead of module.mlp
+            moe_module = module.moe
+            # fc1 - gate_proj and up_proj for all experts
+            scales_list.append(
+                _auto_get_scale(
+                    layer_name="expert.gate_proj",
+                    prev_op=module.post_attention_layernorm,
+                    layers=[
+                        w
+                        for expert in moe_module.experts
+                        for w in [expert.gate_proj, expert.up_proj]
+                    ],
+                    inp=input_feat["moe"],
+                    module2inspect=moe_module,
+                    cache=cache,
+                )
+            )
+            # fc2 - down_proj for each expert
+            # Use the individual expert layer inputs captured by hooks
+            for i, expert in enumerate(moe_module.experts):
+                # Reshape 2D input (num_tokens, intermediate_size) to 3D (1, num_tokens, intermediate_size)
+                # for compatibility with AWQ search
+                key = f"moe.experts.{i}.down_proj"
+                if key in input_feat:
+                    down_proj_inp = input_feat[key]
+                else:
+                    # This should not happen now that we route tokens to all experts
+                    # But keep as safety fallback
+                    print_info(f"[auto scale] Warning: {key} not found, skipping")
+                    continue
+                if down_proj_inp.dim() == 2:
+                    down_proj_inp = down_proj_inp.unsqueeze(0)
+                scales_list.append(
+                    _auto_get_scale(
+                        layer_name=f"moe.experts.{i}.down_proj",
+                        prev_op=expert.up_proj,
+                        layers=[expert.down_proj],
+                        inp=down_proj_inp,
+                    )
+                )
+        elif module.mlp is not None and hasattr(module.mlp, "gate"):
             print_info("auto scale -> MoeAWQ")
             if self.model_type == "hunyuan_v1_moe":
                 # share_mlp fc1

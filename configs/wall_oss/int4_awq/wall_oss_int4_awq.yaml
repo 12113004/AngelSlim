@@ -1,0 +1,64 @@
+# Wall-OSS INT4 AWQ Quantization Configuration
+# Aligned with original GPTQ settings: bits=4, group_size=128, zero_point=true
+
+# Global configuration of pipeline
+global:
+  save_path: ./output/wall_oss_int4_awq
+  model_arch_type: wall_oss_moe  # Mark as MoE model for AWQ auto_scale
+
+# Model configuration for Wall-OSS
+# Note: Wall-OSS specific parameters are loaded from:
+#   - train_config: /home/xieqijia/Project/WALL-OSS/wall-x/workspace/libero/config_qact.yml
+#   - action_tokenizer_path: /home/xieqijia/Models/fast
+model:
+  name: WallOSSVL
+  model_path: /home/xieqijia/Project/WALL-OSS/wall-x/workspace/libero/workspace/finetuned_new
+  trust_remote_code: true
+  low_cpu_mem_usage: true
+  use_cache: false
+  torch_dtype: float16
+  device_map: auto
+
+# Compression configuration
+compression:
+  name: PTQ
+  quantization:
+    name: int4_awq
+    bits: 4
+    quant_method:
+      weight: "per-group"
+      group_size: 128
+      zero_point: true
+      mse_range: false
+    ignore_layers:
+      # Visual components - do not quantize
+      - "model.visual.patch_embed.proj"
+      - "model.visual.blocks"
+      - "visual"
+      # Embedding and output layers
+      - "model.embed_tokens"
+      - "model.norm"
+      - "model.rotary_emb"
+      - "lm_head"
+      # Action-related (optional - may want to keep high precision for action prediction)
+      - "action_head"
+      - "action_proj"
+
+# Dataset for calibration
+dataset:
+  name: WallOSSDataset
+  # Using dummy data for testing (actual dataset path not available)
+  data_path: null
+  max_seq_length: 2048
+  num_samples: 32
+  batch_size: 1
+  # Wall-OSS specific dataset parameters
+  inference_settings:
+    pred_horizon: 16
+    action_dim: 7
+    use_fast_mode: false
+
+# Evaluation (optional)
+evaluation:
+  ppl_eval: false
+  lm_eval: false

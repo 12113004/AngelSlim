@@ -59,6 +59,8 @@ class AWQSearch:
         act = act_input
         print_func("[awq search] act device: %s" % act.device)
         print_func("[awq search] search input of %s" % layer_name)
+        print_func("[awq search] act.shape: %s" % str(act.shape))
+        print_func("[awq search] layers[0].weight.shape: %s" % str(layers[0].weight.shape))
         best_error = float("inf")
         best_ratio = -1
         best_scales = None

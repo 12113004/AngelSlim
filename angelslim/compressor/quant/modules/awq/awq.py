@@ -138,7 +138,10 @@ class AWQ:
         for _, module in pre_transformer_modules_dict.items():
             module.cpu()
         layer_kwargs = layers[0].layer_kwargs
-        if self.model.model.config.model_type == "hunyuan_vl":
+        # Fix: For Qwen2.5-VL based models, position_embeddings is passed from parent model
+        # and is required by attention layers. We should NOT set it to None.
+        # The layer_kwargs captured by Catcher already contains the correct position_embeddings.
+        if self.model.model.config.model_type in ["hunyuan_vl"]:
             layer_kwargs["position_embeddings"] = None
         for k, v in layer_kwargs.items():
             # position embeddings
@@ -172,11 +175,28 @@ class AWQ:
                 self.inps = self.inps.to(dev)
             subset = find_layers(layer, layers=self.observer_layer_classes)
 
-            if self.model_arch_type in ["qwen3_moe", "hunyuan_v1_moe", "deepseek_v3"]:
+            if self.model_arch_type in ["qwen3_moe", "hunyuan_v1_moe", "deepseek_v3", "wall_oss_moe"]:
                 subset = {
                     **subset,
                     "mlp": layer.mlp,
                 }
+            # Wall-OSS uses MoE instead of MLP
+            if hasattr(layer, "moe") and layer.moe is not None:
+                subset = {
+                    **subset,
+                    "moe": layer.moe,
+                }
+                # Also add individual expert layers for proper input capture
+                moe_module = layer.moe
+                if hasattr(moe_module, "experts"):
+                    for i, expert in enumerate(moe_module.experts):
+                        subset[f"moe.experts.{i}.up_proj"] = expert.up_proj
+                        subset[f"moe.experts.{i}.down_proj"] = expert.down_proj
+                        subset[f"moe.experts.{i}.gate_proj"] = expert.gate_proj
+                # Add shared_expert if it exists (for Wall-OSS style MoE)
+                if hasattr(moe_module, "shared_expert") and moe_module.shared_expert is not None:
+                    subset["moe.shared_expert.up_proj"] = moe_module.shared_expert.up_proj
+                    subset["moe.shared_expert.down_proj"] = moe_module.shared_expert.down_proj
 
             # firstly, get input features of all linear layers
             def cache_input_hook(m, x, y, name, feat_dict, layer):
@@ -228,7 +248,9 @@ class AWQ:
                     print_info(f"Warning: repetition hook {k}")
                     input_feat[k] = deduplicate_tensors(v)
 
-            print_info("HOOK Step{}".format(j))
+            # Only print hook step if j is defined (i.e., loop ran)
+            if 'j' in locals():
+                print_info("HOOK Step{}".format(j))
             for h in handles:
                 h.remove()
 
@@ -315,7 +337,7 @@ class AWQ:
         # save processor and tokenizer
         if self.modal_type == "VLM" and self.model.processor is not None:
             self.model.processor.save_pretrained(save_dir)
-        if self.modal_type in ["LLM", "VLM"]:
+        if self.modal_type in ["LLM", "VLM"] and self.model.tokenizer is not None:
             self.model.tokenizer.save_pretrained(save_dir)
 
     def _apply_quant(self, module, named_linears: Dict[str, nn.Linear]):
@@ -360,7 +382,8 @@ class AWQ:
 
     def _convert_llm(self):
         for i in tqdm(range(len(self.layers)), desc="AWQ"):
-            subset = find_layers(self.layers[i], layers=self.observer_layer_classes)
+            # Only quantize Linear layers, not MoE blocks
+            subset = find_layers(self.layers[i], layers=[nn.Linear])
             self._apply_quant(self.layers[i], subset)
 
     def convert(self):

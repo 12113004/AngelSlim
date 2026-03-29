@@ -24,6 +24,10 @@ from .multimodal_dataset import MultiModalDataset
 from .omni_dataset import OmniDataset
 from .text2image_dataset import Text2ImageDataset
 from .text_dataset import TextDataset
+try:
+    from .wall_oss_dataset import WallOSSDataset
+except ImportError:
+    WallOSSDataset = None
 
 
 class DataLoaderFactory:
@@ -122,6 +126,19 @@ class DataLoaderFactory:
                 data_source=data_source,
                 is_hf_dataset=not os.path.isfile(data_source),
                 model_name=model_name,
+            )
+        elif data_type == "WallOSSDataset":
+            if WallOSSDataset is None:
+                raise ValueError("WallOSSDataset is not available. Please check dependencies.")
+            dataset = WallOSSDataset(
+                processor=processor,
+                device=device,
+                max_length=max_length,
+                num_samples=num_samples,
+                data_source=data_source,
+                model_name=model_name,
+                quantization_config=quantization_config,
+                **(inference_settings or {}),
             )
         else:
             raise ValueError(f"Unsupported data type: {data_type}")
